@@ -1,20 +1,18 @@
 {
-  "name": "Leitor Naruto ZIP",
-  "short_name": "NarutoRead",
+  "name": "Leitor Zip Naruto",
+  "short_name": "NarutoReader",
+  "description": "Leitor de mangás em arquivos ZIP",
   "start_url": "index.html",
   "display": "standalone",
-  "background_color": "#f0f0f0",
+  "background_color": "#ffffff",
   "theme_color": "#e67e22",
+  "orientation": "portrait",
   "icons": [
     {
-      "src": "https://via.placeholder.com/192/e67e22/ffffff?text=N",
-      "sizes": "192x192",
-      "type": "image/png"
-    },
-    {
-      "src": "https://via.placeholder.com/512/e67e22/ffffff?text=Naruto",
+      "src": "https://cdn-icons-png.flaticon.com/512/190/190411.png",
       "sizes": "512x512",
-      "type": "image/png"
+      "type": "image/png",
+      "purpose": "any maskable"
     }
   ]
 }

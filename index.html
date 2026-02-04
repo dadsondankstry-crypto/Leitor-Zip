@@ -7,88 +7,97 @@
     <link rel="manifest" href="manifest.json">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
     <style>
-        body { font-family: sans-serif; padding: 20px; background: #f0f0f0; }
-        .controles { margin-bottom: 20px; }
-        #lista { background: white; padding: 10px; border-radius: 8px; margin-bottom: 20px; }
-        .capitulo { 
-            padding: 10px; 
-            border-bottom: 1px solid #eee; 
-            cursor: pointer; 
-            color: #2c3e50;
-        }
-        .capitulo:hover { background: #e9ecef; }
-        #galeria { display: flex; flex-direction: column; align-items: center; }
-        #galeria img { max-width: 100%; margin-bottom: 10px; box-shadow: 0 2px 5px rgba(0,0,0,0.2); }
-        button { padding: 10px 20px; font-size: 16px; cursor: pointer; border-radius: 5px; border: none; background: #e67e22; color: white; }
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; padding: 0; margin: 0; background: #1a1a1a; color: white; }
+        .header { position: sticky; top: 0; background: #e67e22; padding: 15px; z-index: 100; box-shadow: 0 2px 10px rgba(0,0,0,0.5); text-align: center; }
+        .container { padding: 15px; }
+        #lista { background: #2d2d2d; border-radius: 8px; margin-top: 10px; }
+        .capitulo { padding: 15px; border-bottom: 1px solid #3d3d3d; cursor: pointer; transition: 0.2s; }
+        .capitulo:active { background: #444; }
+        #galeria { display: flex; flex-direction: column; align-items: center; width: 100%; margin-top: 10px; }
+        #galeria img { width: 100%; height: auto; margin-bottom: 2px; }
+        button { width: 100%; padding: 12px; font-size: 16px; font-weight: bold; cursor: pointer; border-radius: 5px; border: none; background: white; color: #e67e22; }
+        .status { text-align: center; padding: 20px; font-style: italic; color: #aaa; }
     </style>
 </head>
 <body>
 
-    <div class="controles">
+    <div class="header">
         <button onclick="abrirPasta()">Selecionar Pasta Naruto</button>
     </div>
 
-    <div id="lista">Aguardando seleção de pasta...</div>
-    <div id="galeria"></div>
+    <div class="container">
+        <div id="lista"></div>
+        <div id="galeria"></div>
+    </div>
 
     <script>
-        // Registro do Service Worker para o PWA
         if ('serviceWorker' in navigator) {
-            navigator.serviceWorker.register('sw.js')
-                .then(() => console.log("Service Worker Ativo"));
+            navigator.serviceWorker.register('sw.js');
         }
 
         async function abrirPasta() {
             try {
-                // Abre o seletor de pastas (funciona em Chrome/Edge/Android)
                 const dirHandle = await window.showDirectoryPicker();
                 const listaDiv = document.getElementById('lista');
-                listaDiv.innerHTML = '<strong>Arquivos encontrados:</strong>';
+                const galeria = document.getElementById('galeria');
+                
+                listaDiv.innerHTML = '';
+                galeria.innerHTML = '';
 
                 for await (const entry of dirHandle.values()) {
-                    if (entry.kind === 'file' && entry.name.endsWith('.zip')) {
+                    if (entry.kind === 'file' && entry.name.toLowerCase().endsWith('.zip')) {
                         const p = document.createElement('div');
                         p.className = 'capitulo';
-                        p.innerText = "📁 " + entry.name;
+                        p.innerText = "📖 " + entry.name;
                         p.onclick = () => lerZip(entry);
                         listaDiv.appendChild(p);
                     }
                 }
             } catch (err) {
-                console.error("Erro ao abrir pasta:", err);
-                alert("Para abrir pastas, use o Chrome ou Edge em um ambiente seguro (HTTPS).");
+                alert("Clique em 'Permitir' para acessar a pasta.");
             }
         }
 
         async function lerZip(fileHandle) {
             const galeria = document.getElementById('galeria');
-            galeria.innerHTML = '<p>Abrindo capítulo...</p>';
+            const listaDiv = document.getElementById('lista');
             
-            const file = await fileHandle.getFile();
-            const zip = await JSZip.loadAsync(file);
+            // Esconde a lista para focar na leitura
+            listaDiv.style.display = 'none';
+            galeria.innerHTML = '<div class="status">Descompactando páginas...</div>';
             
-            const imagens = [];
+            try {
+                const file = await fileHandle.getFile();
+                const zip = await JSZip.loadAsync(file);
+                let entradas = [];
 
-            // Filtra apenas arquivos de imagem dentro do ZIP
-            zip.forEach((path, entry) => {
-                if (!entry.dir && (path.match(/\.(jpg|jpeg|png|webp)$/i))) {
-                    imagens.push(entry);
+                zip.forEach((path, entry) => {
+                    if (!entry.dir && path.match(/\.(jpg|jpeg|png|webp)$/i)) {
+                        entradas.push(entry);
+                    }
+                });
+
+                entradas.sort((a, b) => a.name.localeCompare(b.name, undefined, {numeric: true}));
+
+                galeria.innerHTML = '<button onclick="voltarParaLista()" style="margin-bottom:20px; background:#444; color:white;">⬅ Voltar para a lista</button>'; 
+
+                for (const imgEntry of entradas) {
+                    const blob = await imgEntry.async("blob");
+                    const url = URL.createObjectURL(blob);
+                    const img = document.createElement('img');
+                    img.src = url;
+                    img.loading = "lazy";
+                    galeria.appendChild(img);
                 }
-            });
-
-            // Ordena as imagens por nome (importante para ler na ordem certa)
-            imagens.sort((a, b) => a.name.localeCompare(b.name, undefined, {numeric: true}));
-
-            galeria.innerHTML = '';
-            for (const imgEntry of imagens) {
-                const blob = await imgEntry.async("blob");
-                const url = URL.createObjectURL(blob);
-                const img = document.createElement('img');
-                img.src = url;
-                galeria.appendChild(img);
+            } catch (err) {
+                galeria.innerHTML = '<div class="status" style="color:red;">Erro: ' + err.message + '</div>';
             }
-            
-            // Rola para o topo da galeria ao abrir
+            window.scrollTo(0, 0);
+        }
+
+        function voltarParaLista() {
+            document.getElementById('lista').style.display = 'block';
+            document.getElementById('galeria').innerHTML = '';
             window.scrollTo(0, 0);
         }
     </script>
