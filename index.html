@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Leitor Zip Naruto</title>
+    <link rel="manifest" href="manifest.json">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+    <style>
+        body { font-family: sans-serif; padding: 20px; background: #f0f0f0; }
+        .controles { margin-bottom: 20px; }
+        #lista { background: white; padding: 10px; border-radius: 8px; margin-bottom: 20px; }
+        .capitulo { 
+            padding: 10px; 
+            border-bottom: 1px solid #eee; 
+            cursor: pointer; 
+            color: #2c3e50;
+        }
+        .capitulo:hover { background: #e9ecef; }
+        #galeria { display: flex; flex-direction: column; align-items: center; }
+        #galeria img { max-width: 100%; margin-bottom: 10px; box-shadow: 0 2px 5px rgba(0,0,0,0.2); }
+        button { padding: 10px 20px; font-size: 16px; cursor: pointer; border-radius: 5px; border: none; background: #e67e22; color: white; }
+    </style>
+</head>
+<body>
+
+    <div class="controles">
+        <button onclick="abrirPasta()">Selecionar Pasta Naruto</button>
+    </div>
+
+    <div id="lista">Aguardando seleção de pasta...</div>
+    <div id="galeria"></div>
+
+    <script>
+        // Registro do Service Worker para o PWA
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.register('sw.js')
+                .then(() => console.log("Service Worker Ativo"));
+        }
+
+        async function abrirPasta() {
+            try {
+                // Abre o seletor de pastas (funciona em Chrome/Edge/Android)
+                const dirHandle = await window.showDirectoryPicker();
+                const listaDiv = document.getElementById('lista');
+                listaDiv.innerHTML = '<strong>Arquivos encontrados:</strong>';
+
+                for await (const entry of dirHandle.values()) {
+                    if (entry.kind === 'file' && entry.name.endsWith('.zip')) {
+                        const p = document.createElement('div');
+                        p.className = 'capitulo';
+                        p.innerText = "📁 " + entry.name;
+                        p.onclick = () => lerZip(entry);
+                        listaDiv.appendChild(p);
+                    }
+                }
+            } catch (err) {
+                console.error("Erro ao abrir pasta:", err);
+                alert("Para abrir pastas, use o Chrome ou Edge em um ambiente seguro (HTTPS).");
+            }
+        }
+
+        async function lerZip(fileHandle) {
+            const galeria = document.getElementById('galeria');
+            galeria.innerHTML = '<p>Abrindo capítulo...</p>';
+            
+            const file = await fileHandle.getFile();
+            const zip = await JSZip.loadAsync(file);
+            
+            const imagens = [];
+
+            // Filtra apenas arquivos de imagem dentro do ZIP
+            zip.forEach((path, entry) => {
+                if (!entry.dir && (path.match(/\.(jpg|jpeg|png|webp)$/i))) {
+                    imagens.push(entry);
+                }
+            });
+
+            // Ordena as imagens por nome (importante para ler na ordem certa)
+            imagens.sort((a, b) => a.name.localeCompare(b.name, undefined, {numeric: true}));
+
+            galeria.innerHTML = '';
+            for (const imgEntry of imagens) {
+                const blob = await imgEntry.async("blob");
+                const url = URL.createObjectURL(blob);
+                const img = document.createElement('img');
+                img.src = url;
+                galeria.appendChild(img);
+            }
+            
+            // Rola para o topo da galeria ao abrir
+            window.scrollTo(0, 0);
+        }
+    </script>
+</body>
+</html>

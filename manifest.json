@@ -1,0 +1,20 @@
+{
+  "name": "Leitor Naruto ZIP",
+  "short_name": "NarutoRead",
+  "start_url": "index.html",
+  "display": "standalone",
+  "background_color": "#f0f0f0",
+  "theme_color": "#e67e22",
+  "icons": [
+    {
+      "src": "https://via.placeholder.com/192/e67e22/ffffff?text=N",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "https://via.placeholder.com/512/e67e22/ffffff?text=Naruto",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}
