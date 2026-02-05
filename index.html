@@ -2,32 +2,33 @@
 <html lang="pt-br">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Leitor Zip Naruto</title>
     <link rel="manifest" href="manifest.json">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
     <style>
-        body { font-family: sans-serif; padding: 0; margin: 0; background: #1a1a1a; color: white; }
-        .header { position: sticky; top: 0; background: #e67e22; padding: 15px; z-index: 100; text-align: center; display: flex; gap: 10px; justify-content: center; }
-        .container { padding: 15px; }
-        #lista { background: #2d2d2d; border-radius: 8px; margin-top: 10px; }
-        .capitulo { padding: 15px; border-bottom: 1px solid #3d3d3d; cursor: pointer; }
-        .capitulo:active { background: #444; }
+        body { font-family: sans-serif; padding: 0; margin: 0; background: #000; color: white; overflow-x: hidden; }
+        .header { position: sticky; top: 0; background: #e67e22; padding: 10px; z-index: 1000; display: flex; gap: 8px; box-shadow: 0 4px 10px rgba(0,0,0,0.5); }
+        .container { padding: 10px; padding-top: 5px; }
+        #lista { background: #1a1a1a; border-radius: 8px; }
+        .capitulo { padding: 18px; border-bottom: 1px solid #333; cursor: pointer; font-size: 16px; }
+        .capitulo:active { background: #333; }
         #galeria { display: flex; flex-direction: column; align-items: center; width: 100%; }
-        #galeria img { width: 100%; height: auto; margin-bottom: 2px; }
-        button { padding: 10px; font-weight: bold; cursor: pointer; border-radius: 5px; border: none; background: white; color: #e67e22; }
-        .btn-nav { background: #333; color: white; flex: 1; }
-        .status { text-align: center; padding: 20px; color: #aaa; }
+        #galeria img { width: 100%; height: auto; display: block; margin-bottom: 0; }
+        button { padding: 12px; font-weight: bold; cursor: pointer; border-radius: 6px; border: none; background: white; color: #e67e22; flex: 1; font-size: 14px; }
+        .btn-nav { background: #222; color: white; border: 1px solid #444; }
+        .status-msg { text-align: center; padding: 40px 20px; color: #ff9f43; font-size: 18px; }
+        .error-btn { background: #ff4757; color: white; width: 100%; margin-top: 20px; padding: 20px; }
     </style>
 </head>
 <body>
 
-    <div class="header" id="header-main">
-        <button onclick="abrirPasta()">📁 Selecionar Pasta</button>
+    <div class="header" id="menu-principal">
+        <button onclick="abrirPasta()">📁 Selecionar Pasta Naruto</button>
     </div>
 
-    <div class="header" id="header-nav" style="display:none;">
-        <button class="btn-nav" onclick="voltarParaLista()">⬅ Lista</button>
+    <div class="header" id="menu-leitura" style="display:none;">
+        <button class="btn-nav" onclick="voltarParaLista()">☰ Lista</button>
         <button class="btn-nav" onclick="mudarCapitulo(-1)">◀ Ant.</button>
         <button class="btn-nav" onclick="mudarCapitulo(1)">Próx. ▶</button>
     </div>
@@ -38,66 +39,86 @@
     </div>
 
     <script>
-        let arquivosDisponiveis = [];
-        let indiceAtual = -1;
+        let pastaHandle = null;
+        let arquivos = [];
+        let indexAtivo = -1;
+
+        // Registrar SW
+        if ('serviceWorker' in navigator) { navigator.serviceWorker.register('sw.js'); }
 
         async function abrirPasta() {
             try {
-                const dirHandle = await window.showDirectoryPicker();
-                const listaDiv = document.getElementById('lista');
-                listaDiv.innerHTML = '';
-                arquivosDisponiveis = [];
-
-                for await (const entry of dirHandle.values()) {
-                    if (entry.kind === 'file' && entry.name.toLowerCase().endsWith('.zip')) {
-                        arquivosDisponiveis.push(entry);
-                    }
-                }
-
-                // Ordena os capítulos
-                arquivosDisponiveis.sort((a, b) => a.name.localeCompare(b.name, undefined, {numeric: true}));
-
-                arquivosDisponiveis.forEach((entry, index) => {
-                    const p = document.createElement('div');
-                    p.className = 'capitulo';
-                    p.innerText = "📖 " + entry.name;
-                    p.onclick = () => carregarCapitulo(index);
-                    listaDiv.appendChild(p);
-                });
+                pastaHandle = await window.showDirectoryPicker();
+                await atualizarLista();
             } catch (err) {
-                alert("Erro ao acessar pasta. Tente novamente e clique em 'Permitir'.");
+                console.log("Usuário cancelou ou erro de permissão.");
             }
         }
 
+        async function atualizarLista() {
+            const listaDiv = document.getElementById('lista');
+            listaDiv.innerHTML = '<div class="status-msg">Lendo pasta...</div>';
+            arquivos = [];
+
+            for await (const entry of pastaHandle.values()) {
+                if (entry.kind === 'file' && entry.name.toLowerCase().endsWith('.zip')) {
+                    arquivos.push(entry);
+                }
+            }
+
+            arquivos.sort((a, b) => a.name.localeCompare(b.name, undefined, {numeric: true}));
+
+            listaDiv.innerHTML = '';
+            arquivos.forEach((file, i) => {
+                const item = document.createElement('div');
+                item.className = 'capitulo';
+                item.innerText = "📖 " + file.name;
+                item.onclick = () => carregarCapitulo(i);
+                listaDiv.appendChild(item);
+            });
+        }
+
+        async function verificarPermissao(handle) {
+            const opt = { mode: 'read' };
+            if ((await handle.queryPermission(opt)) === 'granted') return true;
+            if ((await handle.requestPermission(opt)) === 'granted') return true;
+            return false;
+        }
+
         async function carregarCapitulo(index) {
-            if (index < 0 || index >= arquivosDisponiveis.length) return;
-            
-            indiceAtual = index;
-            const entry = arquivosDisponiveis[index];
+            if (index < 0 || index >= arquivos.length) return;
+            indexAtivo = index;
+            const item = arquivos[index];
             const galeria = document.getElementById('galeria');
             
+            // UI Switch
             document.getElementById('lista').style.display = 'none';
-            document.getElementById('header-main').style.display = 'none';
-            document.getElementById('header-nav').style.display = 'flex';
+            document.getElementById('menu-principal').style.display = 'none';
+            document.getElementById('menu-leitura').style.display = 'flex';
             
-            galeria.innerHTML = '<div class="status">Abrindo: ' + entry.name + '...</div>';
-            
-            try {
-                // Tenta obter o arquivo (isso pode disparar o erro se a permissão expirar)
-                const file = await entry.getFile();
-                const zip = await JSZip.loadAsync(file);
-                let imagens = [];
+            galeria.innerHTML = '<div class="status-msg">Carregando imagens...</div>';
 
-                zip.forEach((path, zipEntry) => {
-                    if (!zipEntry.dir && path.match(/\.(jpg|jpeg|png|webp)$/i)) {
-                        imagens.push(zipEntry);
+            try {
+                // Checa se ainda temos acesso à pasta/arquivo
+                if (!await verificarPermissao(item)) {
+                    throw new Error("Permissão Negada");
+                }
+
+                const file = await item.getFile();
+                const zip = await JSZip.loadAsync(file);
+                let imgs = [];
+
+                zip.forEach((path, entry) => {
+                    if (!entry.dir && path.match(/\.(jpg|jpeg|png|webp|jfif)$/i)) {
+                        imgs.push(entry);
                     }
                 });
 
-                imagens.sort((a, b) => a.name.localeCompare(b.name, undefined, {numeric: true}));
+                imgs.sort((a, b) => a.name.localeCompare(b.name, undefined, {numeric: true}));
 
+                // Limpa e Renderiza
                 galeria.innerHTML = '';
-                for (const imgEntry of imagens) {
+                for (const imgEntry of imgs) {
                     const blob = await imgEntry.async("blob");
                     const url = URL.createObjectURL(blob);
                     const img = document.createElement('img');
@@ -106,21 +127,26 @@
                     galeria.appendChild(img);
                 }
                 window.scrollTo(0, 0);
+
             } catch (err) {
-                galeria.innerHTML = '<div class="status" style="color:red;">Erro: O navegador perdeu acesso ao arquivo. Por favor, selecione a pasta novamente.</div>';
-                document.getElementById('header-main').style.display = 'flex';
+                galeria.innerHTML = `
+                    <div class="status-msg" style="color:#ff4757">
+                        O navegador perdeu o acesso aos arquivos por segurança.<br>
+                        <button class="error-btn" onclick="abrirPasta()">CLIQUE AQUI PARA REATIVAR</button>
+                    </div>`;
             }
         }
 
-        function mudarCapitulo(direcao) {
-            carregarCapitulo(indiceAtual + direcao);
+        function mudarCapitulo(dir) {
+            carregarCapitulo(indexAtivo + dir);
         }
 
         function voltarParaLista() {
             document.getElementById('lista').style.display = 'block';
-            document.getElementById('header-main').style.display = 'flex';
-            document.getElementById('header-nav').style.display = 'none';
+            document.getElementById('menu-principal').style.display = 'flex';
+            document.getElementById('menu-leitura').style.display = 'none';
             document.getElementById('galeria').innerHTML = '';
+            window.scrollTo(0, 0);
         }
     </script>
 </body>
